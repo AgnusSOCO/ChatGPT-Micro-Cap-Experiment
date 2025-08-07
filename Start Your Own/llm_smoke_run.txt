@@ -1,0 +1,26 @@
+LLM Smoke Test — 2025-08-07 UTC
+
+Commands:
+1) pytest -q
+2) OPENAI_API_KEY=*** python start_trading.py --mode dry-run --plan-source llm --llm-once
+3) OPENAI_API_KEY=*** ALPACA_API_KEY_ID=*** ALPACA_API_SECRET_KEY=*** ALPACA_BASE_URL=https://paper-api.alpaca.markets \
+   python start_trading.py --mode paper --plan-source llm --llm-once
+
+Results:
+- Tests:
+  .......... [100%]
+  10 passed, 1 warning
+
+- Dry-run LLM:
+  Running in dry-run mode; no orders will be placed.
+  [DRY-RUN][LLM] Would place: MCRB buy 1.0 market stop=10.5 limit=None
+  [DRY-RUN][LLM] Would place: SNDL buy 1.0 limit stop=2.8 limit=3.0
+
+- Paper-mode LLM (market closed):
+  Running in paper mode
+  [LLM] Failed to place order for MCRB: Risk rejected order: Market is closed
+  [LLM] Failed to place order for SNDL: Risk rejected order: Market is closed
+
+Notes:
+- yfinance calls in this environment often fail to fetch intraday bars; the screener handles this by skipping symbols.
+- Risk correctly blocks entries when market is closed. During market hours, bracket orders will be submitted via Alpaca if risk approves.
