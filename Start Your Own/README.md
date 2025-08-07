@@ -1,39 +1,86 @@
 # Start Your Own
 
-This folder lets you run the trading experiment on your own computer. It contains two small scripts and the CSV files they produce.
+This folder lets you run the trading experiment on your own computer. It now supports three modes:
+- dry-run (default): CSV/yfinance only, no orders submitted
+- paper: submits orders to a broker paper account (Alpaca)
+- live: submits live orders with guard rails
 
-Run the commands below from the repository root. The scripts automatically
-save their CSV data inside this folder.
+Data and logs are saved inside this folder.
 
-## Trading_Script.py
+## Quick Start (dry-run)
 
-This script updates your portfolio and logs trades.
-
-1. **Install Python packages**
+1) Install Python packages
    ```bash
-   pip install pandas yfinance numpy matplotlib
+   pip install -r requirements.txt
    ```
-2. **Run the script**
+
+2) Run the original script
    ```bash
    python "Start Your Own/Trading_Script.py"
    ```
-3. **Follow the prompts**
+
+3) Follow the prompts
    - The program uses past data from 'chatgpt_portfolio_update.csv' to automatically grab today's portfolio.
    - If it is a weekend, the script will inform you that date will be inaccurate. However, this is easily fixable by editing CSV files manually and saving.
-   - If 'chatgpt_portfolio_update.csv' is empty (meaning no past trading days logged), you will required to enter your starting cash.
+   - If 'chatgpt_portfolio_update.csv' is empty (meaning no past trading days logged), you will be required to enter your starting cash.
    - From here, you can set up your portfolio or make any changes.
-   - The script asks if you want to record manual buys or sells. **IT WILL ASSUME TRADES HAPPEN, SO CHECK ACCURACY.**
+   - The script asks if you want to record manual buys or sells.
    - After you hit 'Enter' all calculations for the day are made.
    - Results are saved to `chatgpt_portfolio_update.csv` and any trades are added to `chatgpt_trade_log.csv`.
-   - In the terminal, daily results are printed. Copy and paste results into the LLM. **ALL PROMPTING IS MANUAL AT THE MOMENT.**
+
+## Paper/Live Trading (Alpaca)
+
+1) Copy and edit .env
+   ```bash
+   cp .env.example .env
+   # fill in ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY
+   # set MODE=paper (or live)
+   ```
+
+2) Create a simple plan file of desired orders (optional)
+   ```bash
+   cp examples/plan.json my_plan.json
+   ```
+
+3) Submit in paper mode with confirmation
+   ```bash
+   python start_trading.py --mode paper --plan-file my_plan.json --confirm
+   ```
+
+Notes:
+- MODE can also be set via environment variable, e.g. `MODE=paper`.
+- Risk guardrails are configurable in .env (see RISK_* variables).
+- Live trading requires MODE=live and valid credentials; start with tiny notionals.
+## Risk defaults (doc-aligned)
+
+- Per-trade risk: 2% of equity
+- Daily loss cap: 6% (tiers at 4.5% and 5.4%)
+- Portfolio heat: 10% total risk, max 5 positions
+- Bracket stops: buys submit with hard stop-loss by default; if no stop provided, a default 10% stop is used
+
+
+
+## Data and logs
+
+- Portfolio snapshots: chatgpt_portfolio_update.csv
+- Trade log: chatgpt_trade_log.csv
+- Execution audit: execution_log.csv
+
+These files are written in this folder by default. The execution audit records each broker order submission and final status for traceability.
+
+## Tests
+
+- Install: pip install -r requirements.txt
+- Run tests: pytest -q
+
 
 ## Generate_Graph.py
 
 This script draws a graph of your portfolio versus the S&P 500.
 
-1. **Ensure you have portfolio data**
+1) Ensure you have portfolio data
    - Run `Trading_Script.py` at least once so `chatgpt_portfolio_update.csv` has data.
-2. **Run the graph script**
+2) Run the graph script
    ```bash
    python "Start Your Own/Generate_Graph.py" --baseline-equity 100
    ```
@@ -41,9 +88,7 @@ This script draws a graph of your portfolio versus the S&P 500.
    ```bash
    python "Start Your Own/Generate_Graph.py" --baseline-equity 100 --start-date 2023-01-01 --end-date 2023-12-31
    ```
-3. **View the chart**
+3) View the chart
    - A window opens showing your portfolio value vs. S&P 500. Results will be adjusted for baseline equity.
 
-All of this is still VERY NEW, so there is bugs. Please reach out if you find an issue or have a question.
-
-Both scripts are designed for beginners, feel free to experiment and modify them as you learn.
+All of this is still very new, so there may be bugs. Please reach out if you find an issue or have a question.

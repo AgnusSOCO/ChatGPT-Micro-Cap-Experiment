@@ -1,0 +1,10 @@
+{
+  "orders": [
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "qty": 1,
+      "type": "market"
+    }
+  ]
+}

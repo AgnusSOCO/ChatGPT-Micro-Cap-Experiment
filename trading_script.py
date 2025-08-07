@@ -14,6 +14,15 @@ import yfinance as yf
 from typing import Any, cast
 import os
 import time
+from typing import Optional
+from config import load_config, AppConfig
+from risk.manager import RiskManager, RiskConfig, EquityContext
+from execution.executor import Executor, TradePlanItem
+from exchange.alpaca_client import AlpacaClient
+
+EXECUTOR: Optional[Executor] = None
+CFG: Optional[AppConfig] = None
+
 
 # Shared file locations
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -168,11 +177,28 @@ Would you like to log a manual trade? Enter 'b' for buy, 's' for sell, or press 
 
             if low_price <= stop:
                 price = stop
-                value = round(price * shares, 2)
-                pnl = round((price - cost) * shares, 2)
                 action = "SELL - Stop Loss Triggered"
-                cash += value
-                portfolio_df = log_sell(ticker, shares, price, cost, pnl, portfolio_df)
+                if EXECUTOR is not None:
+                    try:
+                        plan = TradePlanItem(symbol=ticker, side="sell", qty=shares, type="market")
+                        ctx = EquityContext(equity=total_value + cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
+                        resp = EXECUTOR.place_and_reconcile(plan, ctx)
+                        fill_price = float(resp.avg_fill_price) if resp.avg_fill_price is not None else price
+                        value = round(fill_price * shares, 2)
+                        pnl = round((fill_price - cost) * shares, 2)
+                        cash += value
+                        portfolio_df = log_sell(ticker, shares, fill_price, cost, pnl, portfolio_df)
+                    except Exception as e:
+                        print(f"Stop-loss execution failed for {ticker}: {e}")
+                        value = round(price * shares, 2)
+                        pnl = round((price - cost) * shares, 2)
+                        cash += value
+                        portfolio_df = log_sell(ticker, shares, price, cost, pnl, portfolio_df)
+                else:
+                    value = round(price * shares, 2)
+                    pnl = round((price - cost) * shares, 2)
+                    cash += value
+                    portfolio_df = log_sell(ticker, shares, price, cost, pnl, portfolio_df)
             else:
                 price = close_price
                 value = round(price * shares, 2)
@@ -283,6 +309,54 @@ def log_manual_buy(
             print("Returning...")
             return cash, chatgpt_portfolio
 
+    if EXECUTOR is not None:
+        try:
+            plan = TradePlanItem(symbol=ticker, side="buy", qty=shares, type="market")
+            ctx = EquityContext(equity=cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
+            resp = EXECUTOR.place_and_reconcile(plan, ctx)
+            fill_price = float(resp.avg_fill_price) if resp.avg_fill_price is not None else buy_price
+            effective_cost = fill_price * shares
+            if effective_cost > cash:
+                print(f"Manual buy for {ticker} rejected: fill cost {effective_cost} exceeds cash {cash}.")
+                return cash, chatgpt_portfolio
+            pnl = 0.0
+            log = {
+                "Date": today,
+                "Ticker": ticker,
+                "Shares Bought": shares,
+                "Buy Price": fill_price,
+                "Cost Basis": effective_cost,
+                "PnL": pnl,
+                "Reason": "MANUAL BUY - New position",
+            }
+            if os.path.exists(TRADE_LOG_CSV):
+                df = pd.read_csv(TRADE_LOG_CSV)
+                df = pd.concat([df, pd.DataFrame([log])], ignore_index=True)
+            else:
+                df = pd.DataFrame([log])
+            df.to_csv(TRADE_LOG_CSV, index=False)
+            mask = chatgpt_portfolio["ticker"] == ticker
+            if not mask.any():
+                new_trade = {
+                    "ticker": ticker,
+                    "shares": shares,
+                    "stop_loss": stoploss,
+                    "buy_price": fill_price,
+                    "cost_basis": effective_cost,
+                }
+                chatgpt_portfolio = pd.concat([chatgpt_portfolio, pd.DataFrame([new_trade])], ignore_index=True)
+            else:
+                row_index = chatgpt_portfolio[mask].index[0]
+                current_shares = float(chatgpt_portfolio.at[row_index, "shares"])
+                chatgpt_portfolio.at[row_index, "shares"] = current_shares + shares
+                current_cost_basis = float(chatgpt_portfolio.at[row_index, "cost_basis"])
+                chatgpt_portfolio.at[row_index, "cost_basis"] = shares * fill_price + current_cost_basis
+                chatgpt_portfolio.at[row_index, "stop_loss"] = stoploss
+            cash = cash - effective_cost
+            print(f"Manual buy for {ticker} complete!")
+            return cash, chatgpt_portfolio
+        except Exception as e:
+            print(f"Live buy failed for {ticker}: {e}. Falling back to dry-run validation.")
     data = yf.download(ticker, period="1d")
     data = cast(pd.DataFrame, data)
     if data.empty:
@@ -386,6 +460,50 @@ If this is a mistake, enter 1. """
             f"Manual sell for {ticker} failed: trying to sell {shares_sold} shares but only own {total_shares}."
         )
         return cash, chatgpt_portfolio
+
+    if EXECUTOR is not None:
+        try:
+            plan = TradePlanItem(symbol=ticker, side="sell", qty=shares_sold, type="market")
+            ctx = EquityContext(equity=cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
+            resp = EXECUTOR.place_and_reconcile(plan, ctx)
+            fill_price = float(resp.avg_fill_price) if resp.avg_fill_price is not None else sell_price
+            buy_price = float(ticker_row["buy_price"].item())
+            cost_basis = buy_price * shares_sold
+            pnl = fill_price * shares_sold - cost_basis
+            log = {
+                "Date": today,
+                "Ticker": ticker,
+                "Shares Bought": "",
+                "Buy Price": "",
+                "Cost Basis": cost_basis,
+                "PnL": pnl,
+                "Reason": f"MANUAL SELL - {reason}",
+                "Shares Sold": shares_sold,
+                "Sell Price": fill_price,
+            }
+            if os.path.exists(TRADE_LOG_CSV):
+                df = pd.read_csv(TRADE_LOG_CSV)
+                df = pd.concat([df, pd.DataFrame([log])], ignore_index=True)
+            else:
+                df = pd.DataFrame([log])
+            df.to_csv(TRADE_LOG_CSV, index=False)
+
+            if total_shares == shares_sold:
+                chatgpt_portfolio = chatgpt_portfolio[chatgpt_portfolio["ticker"] != ticker]
+            else:
+                row_index = ticker_row.index[0]
+                chatgpt_portfolio.at[row_index, "shares"] = total_shares - shares_sold
+                chatgpt_portfolio.at[row_index, "cost_basis"] = (
+                    chatgpt_portfolio.at[row_index, "shares"]
+                    * chatgpt_portfolio.at[row_index, "buy_price"]
+                )
+
+            cash = cash + shares_sold * fill_price
+            print(f"manual sell for {ticker} complete!")
+            return cash, chatgpt_portfolio
+        except Exception as e:
+            print(f"Live sell failed for {ticker}: {e}. Falling back to dry-run validation.")
+
     data = yf.download(ticker, period="1d")
     data = cast(pd.DataFrame, data)
     if data.empty:
@@ -436,7 +554,7 @@ If this is a mistake, enter 1. """
 
 def daily_results(chatgpt_portfolio: pd.DataFrame, cash: float) -> None:
     """Print daily price updates and performance metrics."""
-    portfolio_dict: list[dict[str, object]] = chatgpt_portfolio.to_dict(orient="records")
+    portfolio_dict = chatgpt_portfolio.to_dict(orient="records")
 
     print(f"prices and updates for {today}")
     time.sleep(1)
@@ -527,6 +645,31 @@ def main(file: str, data_dir: Path | None = None) -> None:
     chatgpt_portfolio, cash = load_latest_portfolio_state(file)
     if data_dir is not None:
         set_data_dir(data_dir)
+
+    global CFG, EXECUTOR
+    CFG = load_config()
+    EXECUTOR = None
+    assert CFG is not None
+    if CFG.mode != "dry-run":
+        risk_cfg = RiskConfig(
+            max_notional_per_trade=CFG.max_notional_per_trade,
+            max_symbol_exposure_pct=CFG.max_symbol_exposure_pct,
+            daily_loss_cap_pct=CFG.daily_loss_cap_pct,
+            min_price=CFG.min_price,
+            max_spread_pct=CFG.max_spread_pct,
+            allow_after_hours=CFG.allow_after_hours,
+            max_position_risk_pct=CFG.max_position_risk_pct,
+            max_portfolio_heat_pct=CFG.max_portfolio_heat_pct,
+            max_positions=CFG.max_positions,
+            daily_loss_tier_warn_pct=CFG.daily_loss_tier_warn_pct,
+            daily_loss_tier_block_pct=CFG.daily_loss_tier_block_pct,
+            require_bracket=CFG.require_bracket,
+            default_stop_loss_pct=CFG.default_stop_loss_pct,
+        )
+        risk = RiskManager(risk_cfg)
+        client = AlpacaClient(base_url=CFG.alpaca_base_url)
+        audit = DATA_DIR / "execution_log.csv"
+        EXECUTOR = Executor(client, risk, audit_log_path=audit)
 
     chatgpt_portfolio, cash = process_portfolio(chatgpt_portfolio, cash)
     daily_results(chatgpt_portfolio, cash)
