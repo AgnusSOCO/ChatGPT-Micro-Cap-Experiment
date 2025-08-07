@@ -82,19 +82,25 @@ class AlpacaClient(ExchangeClient):
         qty = req.qty
 
         if req.type == "market":
-            order_req = MarketOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, client_order_id=req.client_order_id)
+            order_req = MarketOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, client_order_id=req.client_order_id)  # type: ignore[call-arg]
         elif req.type == "limit":
+            if LimitOrderRequest is None:
+                raise RuntimeError("alpaca-py is not installed. Cannot place limit orders.")
             if req.limit_price is None:
                 raise ValueError("limit_price required for limit orders")
-            order_req = LimitOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, limit_price=req.limit_price, client_order_id=req.client_order_id)
+            order_req = LimitOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, limit_price=req.limit_price, client_order_id=req.client_order_id)  # type: ignore[call-arg]
         elif req.type == "stop":
+            if StopOrderRequest is None:
+                raise RuntimeError("alpaca-py is not installed. Cannot place stop orders.")
             if req.stop_price is None:
                 raise ValueError("stop_price required for stop orders")
-            order_req = StopOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, stop_price=req.stop_price, client_order_id=req.client_order_id)
+            order_req = StopOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, stop_price=req.stop_price, client_order_id=req.client_order_id)  # type: ignore[call-arg]
         elif req.type == "stop_limit":
+            if StopLimitOrderRequest is None:
+                raise RuntimeError("alpaca-py is not installed. Cannot place stop-limit orders.")
             if req.stop_price is None or req.limit_price is None:
                 raise ValueError("stop_price and limit_price required for stop_limit orders")
-            order_req = StopLimitOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, limit_price=req.limit_price, stop_price=req.stop_price, client_order_id=req.client_order_id)
+            order_req = StopLimitOrderRequest(symbol=req.symbol, qty=qty, side=alp_side, time_in_force=tif, limit_price=req.limit_price, stop_price=req.stop_price, client_order_id=req.client_order_id)  # type: ignore[call-arg]
         else:
             raise ValueError(f"Unsupported order type: {req.type}")
 
