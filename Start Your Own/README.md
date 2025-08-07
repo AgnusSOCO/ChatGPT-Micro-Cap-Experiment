@@ -92,3 +92,27 @@ This script draws a graph of your portfolio versus the S&P 500.
    - A window opens showing your portfolio value vs. S&P 500. Results will be adjusted for baseline equity.
 
 All of this is still very new, so there may be bugs. Please reach out if you find an issue or have a question.
+## Using the ChatGPT Research Mode
+
+The project now supports generating trade plans with ChatGPT and routing them through the existing risk management and execution stack.
+
+Prereqs:
+- Set env vars (or .env): OPENAI_API_KEY, and ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY for paper/live
+- Optional: adjust LLM_MODEL, LLM_CADENCE_SECONDS, LLM_UNIVERSE_FILE, LLM_STRATEGY_TEXT in .env
+
+Dry-run one-shot (no orders placed):
+OPENAI_API_KEY=... \
+python start_trading.py --mode dry-run --plan-source llm --llm-once
+
+Paper one-shot during market hours:
+OPENAI_API_KEY=... ALPACA_API_KEY_ID=... ALPACA_API_SECRET_KEY=... \
+python start_trading.py --mode paper --plan-source llm --llm-once
+
+Scheduled loop during market hours (runs for 10 minutes by default cadence):
+OPENAI_API_KEY=... ALPACA_API_KEY_ID=... ALPACA_API_SECRET_KEY=... \
+python start_trading.py --mode paper --plan-source llm --minutes 10 --confirm
+
+Notes:
+- LLM requests/responses are logged to Start Your Own/llm_research_log.jsonl
+- Orders are audited to Start Your Own/execution_log.csv
+- Buys enforce bracket stops by default per risk config; risk blocks entries when market is closed
