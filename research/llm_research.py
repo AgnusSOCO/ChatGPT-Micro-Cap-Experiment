@@ -111,17 +111,27 @@ class LLMResearch:
         filtered = screen_universe(universe, cfg, max_candidates=max_candidates)
         prompt = self.build_prompt(filtered, strategy_text, cfg)
         started = int(time.time())
-        raw = self.generator(prompt)
-        ideas = self.parse_ideas(raw)
-        self._log_jsonl(
-            {
-                "ts": started,
-                "prompt_universe": filtered,
-                "raw": raw,
-                "ideas": [idea.__dict__ for idea in ideas],
-            }
-        )
-        return self.ideas_to_trade_plans(ideas)
+        try:
+            raw = self.generator(prompt)
+            ideas = self.parse_ideas(raw)
+            self._log_jsonl(
+                {
+                    "ts": started,
+                    "prompt_universe": filtered,
+                    "raw": raw,
+                    "ideas": [idea.__dict__ for idea in ideas],
+                }
+            )
+            return self.ideas_to_trade_plans(ideas)
+        except Exception as e:
+            self._log_jsonl(
+                {
+                    "ts": started,
+                    "prompt_universe": filtered,
+                    "error": f"{type(e).__name__}: {e}",
+                }
+            )
+            return []
 
 
 def openai_generator_factory(model: str) -> Callable[[str], str]:
