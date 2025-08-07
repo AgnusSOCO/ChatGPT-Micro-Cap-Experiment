@@ -11,7 +11,7 @@ from execution.executor import Executor, TradePlanItem
 from trading_script import set_data_dir
 
 
-def build_executor(cfg: AppConfig) -> Executor:
+def build_executor(cfg: AppConfig, data_dir: Path) -> Executor:
     risk_cfg = RiskConfig(
         max_notional_per_trade=cfg.max_notional_per_trade,
         max_symbol_exposure_pct=cfg.max_symbol_exposure_pct,
@@ -25,7 +25,8 @@ def build_executor(cfg: AppConfig) -> Executor:
         client = AlpacaClient(base_url=cfg.alpaca_base_url)
     else:
         raise ValueError(f"Unsupported exchange: {cfg.exchange}")
-    return Executor(client, risk)
+    audit = data_dir / "execution_log.csv"
+    return Executor(client, risk, audit_log_path=audit)
 
 
 def main() -> None:
@@ -40,7 +41,8 @@ def main() -> None:
     if args.mode:
         cfg.mode = args.mode  # type: ignore[assignment]
 
-    set_data_dir(Path(args.data_dir))
+    data_dir = Path(args.data_dir)
+    set_data_dir(data_dir)
 
     if cfg.mode == "dry-run":
         print("Running in dry-run mode; no orders will be placed.")
@@ -78,7 +80,7 @@ def main() -> None:
             print(f"[DRY-RUN] Would place: {i.symbol} {i.side} {i.qty} {i.type}")
         return
 
-    ex = build_executor(cfg)
+    ex = build_executor(cfg, data_dir)
     equity_ctx = EquityContext(equity=100.0, symbol_exposure=0.0, day_realized_pnl_pct=0.0)
 
     for i in plan_items:

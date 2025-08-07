@@ -661,7 +661,8 @@ def main(file: str, data_dir: Path | None = None) -> None:
         )
         risk = RiskManager(risk_cfg)
         client = AlpacaClient(base_url=CFG.alpaca_base_url)
-        EXECUTOR = Executor(client, risk)
+        audit = DATA_DIR / "execution_log.csv"
+        EXECUTOR = Executor(client, risk, audit_log_path=audit)
 
     chatgpt_portfolio, cash = process_portfolio(chatgpt_portfolio, cash)
     daily_results(chatgpt_portfolio, cash)
