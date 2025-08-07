@@ -7,7 +7,7 @@ def test_notional_cap_adjusts_qty():
     rm = RiskManager(cfg)
     req = OrderRequest(symbol="AAPL", side="buy", qty=100.0)
     quote = Quote(symbol="AAPL", bid=10.0, ask=10.2, last=10.1, timestamp=None)
-    ctx = EquityContext(equity=1000.0, symbol_exposure=0.0, day_realized_pnl_pct=0.0)
+    ctx = EquityContext(equity=1000.0, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
     dec = rm.evaluate(req, quote, ctx, market_open=True)
     assert not dec.approved
     assert dec.adjusted_qty is not None
@@ -18,7 +18,7 @@ def test_exposure_cap_blocks():
     rm = RiskManager(cfg)
     req = OrderRequest(symbol="AAPL", side="buy", qty=100.0)
     quote = Quote(symbol="AAPL", bid=10.0, ask=10.2, last=10.1, timestamp=None)
-    ctx = EquityContext(equity=1000.0, symbol_exposure=0.11, day_realized_pnl_pct=0.0)
+    ctx = EquityContext(equity=1000.0, symbol_exposure=0.11, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
     dec = rm.evaluate(req, quote, ctx, market_open=True)
     assert not dec.approved
     assert dec.adjusted_qty is None

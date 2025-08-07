@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 
@@ -9,7 +10,7 @@ from .base import ExchangeClient, OrderRequest, OrderResponse, Quote
 try:
     from alpaca.trading.client import TradingClient
     from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest, MarketOrderRequest, StopOrderRequest, StopLimitOrderRequest
-    from alpaca.trading.enums import OrderSide, TimeInForce as AlpacaTif, OrderType as AlpacaOrderType
+    from alpaca.trading.enums import OrderSide, TimeInForce as AlpacaTif
     from alpaca.data.historical import StockHistoricalDataClient
     from alpaca.data.requests import StockLatestQuoteRequest
 except Exception:
@@ -22,7 +23,6 @@ except Exception:
     StopLimitOrderRequest = None  # type: ignore[assignment]
     OrderSide = None  # type: ignore[assignment]
     AlpacaTif = None  # type: ignore[assignment]
-    AlpacaOrderType = None  # type: ignore[assignment]
     StockLatestQuoteRequest = None  # type: ignore[assignment]
 
 
@@ -66,6 +66,19 @@ class AlpacaClient(ExchangeClient):
         ts = str(q.timestamp) if q and q.timestamp is not None else None
         return Quote(symbol=symbol, bid=bid, ask=ask, last=last, timestamp=ts)
 
+    def _submit_with_retry(self, fn, *args, **kwargs):
+        attempt = 0
+        backoff = 0.5
+        while True:
+            try:
+                return fn(*args, **kwargs)
+            except Exception:
+                attempt += 1
+                if attempt >= 5:
+                    raise
+                time.sleep(backoff)
+                backoff = min(5.0, backoff * 2.0)
+
     def place_order(self, req: OrderRequest) -> OrderResponse:
         if OrderSide is None or AlpacaTif is None or MarketOrderRequest is None:
             raise RuntimeError("alpaca-py is not installed. Cannot place orders.")
@@ -104,7 +117,16 @@ class AlpacaClient(ExchangeClient):
         else:
             raise ValueError(f"Unsupported order type: {req.type}")
 
-        order = self._clients.trading.submit_order(order_req)
+        order = self._submit_with_retry(self._clients.trading.submit_order, order_req)
+
+        if req.order_class == "bracket" and req.stop_price is not None and req.side == "buy":
+            try:
+                if StopOrderRequest is not None:
+                    stop_req = StopOrderRequest(symbol=req.symbol, qty=qty, side=OrderSide.SELL, time_in_force=tif, stop_price=req.stop_price, client_order_id=(req.client_order_id or "") + "-stop")  # type: ignore[call-arg]
+                    self._submit_with_retry(self._clients.trading.submit_order, stop_req)
+            except Exception:
+                pass
+
         return OrderResponse(
             id=str(order.id),
             symbol=str(order.symbol),
@@ -119,7 +141,7 @@ class AlpacaClient(ExchangeClient):
         )
 
     def get_order(self, order_id: str) -> OrderResponse:
-        order = self._clients.trading.get_order_by_id(order_id)
+        order = self._submit_with_retry(self._clients.trading.get_order_by_id, order_id)
         return OrderResponse(
             id=str(order.id),
             symbol=str(order.symbol),
@@ -136,7 +158,7 @@ class AlpacaClient(ExchangeClient):
     def list_open_orders(self) -> list[OrderResponse]:
         if GetOrdersRequest is None:
             return []
-        orders = self._clients.trading.get_orders(GetOrdersRequest(status="open"))  # type: ignore[call-arg]
+        orders = self._submit_with_retry(self._clients.trading.get_orders, GetOrdersRequest(status="open"))  # type: ignore[call-arg]
         out: list[OrderResponse] = []
         for o in orders:
             out.append(OrderResponse(
@@ -154,7 +176,7 @@ class AlpacaClient(ExchangeClient):
         return out
 
     def cancel_order(self, order_id: str) -> None:
-        self._clients.trading.cancel_order_by_id(order_id)
+        self._submit_with_retry(self._clients.trading.cancel_order_by_id, order_id)
 
     def is_market_open(self) -> bool:
         clock = self._clients.trading.get_clock()

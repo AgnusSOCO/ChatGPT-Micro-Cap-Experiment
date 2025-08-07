@@ -28,6 +28,8 @@ class OrderRequest:
     limit_price: Optional[float] = None
     stop_price: Optional[float] = None
     client_order_id: Optional[str] = None
+    take_profit_price: Optional[float] = None
+    order_class: Optional[str] = None
 
 
 @dataclass

@@ -181,7 +181,7 @@ Would you like to log a manual trade? Enter 'b' for buy, 's' for sell, or press 
                 if EXECUTOR is not None:
                     try:
                         plan = TradePlanItem(symbol=ticker, side="sell", qty=shares, type="market")
-                        ctx = EquityContext(equity=total_value + cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0)
+                        ctx = EquityContext(equity=total_value + cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
                         resp = EXECUTOR.place_and_reconcile(plan, ctx)
                         fill_price = float(resp.avg_fill_price) if resp.avg_fill_price is not None else price
                         value = round(fill_price * shares, 2)
@@ -312,7 +312,7 @@ def log_manual_buy(
     if EXECUTOR is not None:
         try:
             plan = TradePlanItem(symbol=ticker, side="buy", qty=shares, type="market")
-            ctx = EquityContext(equity=cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0)
+            ctx = EquityContext(equity=cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
             resp = EXECUTOR.place_and_reconcile(plan, ctx)
             fill_price = float(resp.avg_fill_price) if resp.avg_fill_price is not None else buy_price
             effective_cost = fill_price * shares
@@ -464,7 +464,7 @@ If this is a mistake, enter 1. """
     if EXECUTOR is not None:
         try:
             plan = TradePlanItem(symbol=ticker, side="sell", qty=shares_sold, type="market")
-            ctx = EquityContext(equity=cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0)
+            ctx = EquityContext(equity=cash, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
             resp = EXECUTOR.place_and_reconcile(plan, ctx)
             fill_price = float(resp.avg_fill_price) if resp.avg_fill_price is not None else sell_price
             buy_price = float(ticker_row["buy_price"].item())
@@ -658,6 +658,13 @@ def main(file: str, data_dir: Path | None = None) -> None:
             min_price=CFG.min_price,
             max_spread_pct=CFG.max_spread_pct,
             allow_after_hours=CFG.allow_after_hours,
+            max_position_risk_pct=CFG.max_position_risk_pct,
+            max_portfolio_heat_pct=CFG.max_portfolio_heat_pct,
+            max_positions=CFG.max_positions,
+            daily_loss_tier_warn_pct=CFG.daily_loss_tier_warn_pct,
+            daily_loss_tier_block_pct=CFG.daily_loss_tier_block_pct,
+            require_bracket=CFG.require_bracket,
+            default_stop_loss_pct=CFG.default_stop_loss_pct,
         )
         risk = RiskManager(risk_cfg)
         client = AlpacaClient(base_url=CFG.alpaca_base_url)

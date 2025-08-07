@@ -19,6 +19,13 @@ def build_executor(cfg: AppConfig, data_dir: Path) -> Executor:
         min_price=cfg.min_price,
         max_spread_pct=cfg.max_spread_pct,
         allow_after_hours=cfg.allow_after_hours,
+        max_position_risk_pct=cfg.max_position_risk_pct,
+        max_portfolio_heat_pct=cfg.max_portfolio_heat_pct,
+        max_positions=cfg.max_positions,
+        daily_loss_tier_warn_pct=cfg.daily_loss_tier_warn_pct,
+        daily_loss_tier_block_pct=cfg.daily_loss_tier_block_pct,
+        require_bracket=cfg.require_bracket,
+        default_stop_loss_pct=cfg.default_stop_loss_pct,
     )
     risk = RiskManager(risk_cfg)
     if cfg.exchange == "alpaca":
@@ -81,7 +88,7 @@ def main() -> None:
         return
 
     ex = build_executor(cfg, data_dir)
-    equity_ctx = EquityContext(equity=100.0, symbol_exposure=0.0, day_realized_pnl_pct=0.0)
+    equity_ctx = EquityContext(equity=100.0, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
 
     for i in plan_items:
         try:

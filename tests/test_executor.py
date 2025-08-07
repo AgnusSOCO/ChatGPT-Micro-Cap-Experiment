@@ -46,7 +46,7 @@ def test_executor_audits(tmp_path: Path):
     risk = RiskManager(RiskConfig(max_notional_per_trade=1000.0, min_price=1.0))
     audit = tmp_path / "execution_log.csv"
     ex = Executor(client, risk, audit_log_path=audit)
-    ctx = EquityContext(equity=1000.0, symbol_exposure=0.0, day_realized_pnl_pct=0.0)
+    ctx = EquityContext(equity=1000.0, symbol_exposure=0.0, day_realized_pnl_pct=0.0, open_positions=0, portfolio_heat_pct=0.0)
     item = TradePlanItem(symbol="AAPL", side="buy", qty=1.0, type="market")
     resp = ex.place_and_reconcile(item, ctx)
     assert resp.status.lower() == "filled"

@@ -51,6 +51,14 @@ Notes:
 - MODE can also be set via environment variable, e.g. `MODE=paper`.
 - Risk guardrails are configurable in .env (see RISK_* variables).
 - Live trading requires MODE=live and valid credentials; start with tiny notionals.
+## Risk defaults (doc-aligned)
+
+- Per-trade risk: 2% of equity
+- Daily loss cap: 6% (tiers at 4.5% and 5.4%)
+- Portfolio heat: 10% total risk, max 5 positions
+- Bracket stops: buys submit with hard stop-loss by default; if no stop provided, a default 10% stop is used
+
+
 
 ## Data and logs
 
