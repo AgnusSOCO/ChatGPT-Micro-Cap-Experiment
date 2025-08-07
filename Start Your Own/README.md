@@ -52,6 +52,20 @@ Notes:
 - Risk guardrails are configurable in .env (see RISK_* variables).
 - Live trading requires MODE=live and valid credentials; start with tiny notionals.
 
+## Data and logs
+
+- Portfolio snapshots: chatgpt_portfolio_update.csv
+- Trade log: chatgpt_trade_log.csv
+- Execution audit: execution_log.csv
+
+These files are written in this folder by default. The execution audit records each broker order submission and final status for traceability.
+
+## Tests
+
+- Install: pip install -r requirements.txt
+- Run tests: pytest -q
+
+
 ## Generate_Graph.py
 
 This script draws a graph of your portfolio versus the S&P 500.
