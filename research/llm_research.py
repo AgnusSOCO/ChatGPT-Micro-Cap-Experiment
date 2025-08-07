@@ -67,7 +67,15 @@ class LLMResearch:
         )
 
     def parse_ideas(self, content: str) -> list[TradeIdea]:
-        data = json.loads(content)
+        s = content.strip()
+        if s.startswith("```"):
+            s = s.strip("`")
+        if not s.startswith("{"):
+            l = s.find("{")
+            r = s.rfind("}")
+            if l != -1 and r != -1 and r > l:
+                s = s[l : r + 1]
+        data = json.loads(s)
         out: list[TradeIdea] = []
         for it in data.get("ideas", []):
             out.append(
@@ -137,21 +145,40 @@ class LLMResearch:
 def openai_generator_factory(model: str) -> Callable[[str], str]:
     try:
         from openai import OpenAI
+        from openai import APIError, RateLimitError
     except Exception as e:
         raise RuntimeError("openai library is not installed") from e
     client = OpenAI()
 
     def _gen(prompt: str) -> str:
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a disciplined equities trading assistant."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-            max_tokens=800,
-        )
-        content = resp.choices[0].message.content or ""
-        return content.strip()
+        delay = 1.0
+        last_err = None
+        for _ in range(3):
+            try:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a disciplined equities trading assistant."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.2,
+                    max_tokens=800,
+                )
+                content = resp.choices[0].message.content or ""
+                c = content.strip()
+                if c.startswith("```"):
+                    c = c.strip("`")
+                    if "\n" in c:
+                        parts = c.split("\n", 1)
+                        c = parts[1] if len(parts) > 1 else parts[0]
+                return c
+            except (RateLimitError, APIError) as e:
+                last_err = e
+                time.sleep(delay)
+                delay *= 2.0
+            except Exception as e:
+                last_err = e
+                break
+        raise last_err if last_err else RuntimeError("OpenAI request failed")
 
     return _gen
