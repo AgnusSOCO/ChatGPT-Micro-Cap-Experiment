@@ -39,11 +39,11 @@ class AlpacaClient(ExchangeClient):
         use_paper = True
         if base_url:
             use_paper = "paper" in base_url.lower()
-        if TradingClient is None:
+        if TradingClient is None or StockHistoricalDataClient is None:
             raise RuntimeError("alpaca-py is not installed. Please add it to requirements and install.")
         self._clients = _Clients(
-            trading=TradingClient(key, secret, paper=use_paper),
-            data=StockHistoricalDataClient(key, secret),
+            trading=TradingClient(key, secret, paper=use_paper),  # type: ignore[call-arg]
+            data=StockHistoricalDataClient(key, secret),  # type: ignore[call-arg]
         )
 
     def get_account(self) -> Dict[str, Any]:
@@ -67,16 +67,18 @@ class AlpacaClient(ExchangeClient):
         return Quote(symbol=symbol, bid=bid, ask=ask, last=last, timestamp=ts)
 
     def place_order(self, req: OrderRequest) -> OrderResponse:
-        alp_side = OrderSide.BUY if req.side == "buy" else OrderSide.SELL
+        if OrderSide is None or AlpacaTif is None or MarketOrderRequest is None:
+            raise RuntimeError("alpaca-py is not installed. Cannot place orders.")
+        alp_side = OrderSide.BUY if req.side == "buy" else OrderSide.SELL  # type: ignore[attr-defined]
         tif_map = {
-            "day": AlpacaTif.DAY,
-            "gtc": AlpacaTif.GTC,
-            "opg": AlpacaTif.OPG,
-            "cls": AlpacaTif.CLS,
-            "ioc": AlpacaTif.IOC,
-            "fok": AlpacaTif.FOK,
+            "day": AlpacaTif.DAY,  # type: ignore[attr-defined]
+            "gtc": AlpacaTif.GTC,  # type: ignore[attr-defined]
+            "opg": AlpacaTif.OPG,  # type: ignore[attr-defined]
+            "cls": AlpacaTif.CLS,  # type: ignore[attr-defined]
+            "ioc": AlpacaTif.IOC,  # type: ignore[attr-defined]
+            "fok": AlpacaTif.FOK,  # type: ignore[attr-defined]
         }
-        tif = tif_map.get(req.time_in_force, AlpacaTif.DAY)
+        tif = tif_map.get(req.time_in_force, AlpacaTif.DAY)  # type: ignore[attr-defined]
         qty = req.qty
 
         if req.type == "market":
@@ -126,7 +128,9 @@ class AlpacaClient(ExchangeClient):
         )
 
     def list_open_orders(self) -> list[OrderResponse]:
-        orders = self._clients.trading.get_orders(GetOrdersRequest(status="open"))
+        if GetOrdersRequest is None:
+            return []
+        orders = self._clients.trading.get_orders(GetOrdersRequest(status="open"))  # type: ignore[call-arg]
         out: list[OrderResponse] = []
         for o in orders:
             out.append(OrderResponse(
