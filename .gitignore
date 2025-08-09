@@ -1,2 +1,16 @@
+# Byte-compiled / cache
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Local env
+.env
+
+# Generated logs/data
+Start Your Own/execution_log.csv
+Start Your Own/llm_research_log.jsonl
+Start Your Own/chatgpt_portfolio_update.csv
+Start Your Own/chatgpt_trade_log.csv
+
+# OS/editor
+.DS_Store
