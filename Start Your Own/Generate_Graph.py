@@ -8,9 +8,10 @@ is simply reorganised and commented for clarity.
 import matplotlib.pyplot as plt
 import pandas as pd
 import yfinance as yf
+from pathlib import Path
 
-DATA_DIR = "Scripts and CSV Files"
-PORTFOLIO_CSV = f"{DATA_DIR}/chatgpt_portfolio_update.csv"
+DATA_DIR = Path(__file__).resolve().parent
+PORTFOLIO_CSV = str(DATA_DIR / "chatgpt_portfolio_update.csv")
 
 
 def load_portfolio_totals() -> pd.DataFrame:

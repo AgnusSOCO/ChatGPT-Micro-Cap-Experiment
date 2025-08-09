@@ -30,6 +30,12 @@ class AppConfig:
     daily_loss_tier_block_pct: float = float(os.getenv("RISK_DAILY_LOSS_TIER_BLOCK_PCT", "0.054"))
     require_bracket: bool = os.getenv("RISK_REQUIRE_BRACKET", "true").lower() == "true"
     default_stop_loss_pct: float = float(os.getenv("RISK_DEFAULT_STOP_LOSS_PCT", "0.10"))
+    openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    llm_cadence_seconds: int = int(os.getenv("LLM_CADENCE_SECONDS", "900"))
+    llm_universe_file: str | None = os.getenv("LLM_UNIVERSE_FILE")
+    llm_max_daily_usd: float = float(os.getenv("LLM_MAX_DAILY_USD", "2.0"))
+    llm_strategy_text: str = os.getenv("LLM_STRATEGY_TEXT", "Focus on liquid micro-cap momentum with tight spreads, avoid illiquid names, set hard stops at entry.")
 
 
 def load_config() -> AppConfig:
