@@ -560,8 +560,9 @@ def daily_results(chatgpt_portfolio: pd.DataFrame, cash: float) -> None:
     time.sleep(1)
     for stock in portfolio_dict + [{"ticker": "^RUT"}] + [{"ticker": "IWO"}] + [{"ticker": "XBI"}]:
         ticker = stock["ticker"]
+        ticker_to_dl = "IWM" if ticker == "^RUT" else ticker
         try:
-            data = yf.download(ticker, period="2d", progress=False)
+            data = yf.download(ticker_to_dl, period="2d", progress=False)
             data = cast(pd.DataFrame, data)
             if data.empty or len(data) < 2:
                 print(f"Data for {ticker} was empty or incomplete.")
@@ -572,7 +573,8 @@ def daily_results(chatgpt_portfolio: pd.DataFrame, cash: float) -> None:
             percent_change = ((price - last_price) / last_price) * 100
             volume = float(data["Volume"].iloc[-1].item())
         except Exception as e:
-            raise Exception(f"Download for {ticker} failed. {e} Try checking internet connection.")
+            print(f"Download for {ticker} failed. {e} Skipping.")
+            continue
         print(f"{ticker} closing price: {price:.2f}")
         print(f"{ticker} volume for today: ${volume:,}")
         print(f"percent change from the day before: {percent_change:.2f}%")
@@ -609,17 +611,28 @@ def daily_results(chatgpt_portfolio: pd.DataFrame, cash: float) -> None:
     print(f"Total Sharpe Ratio over {n_days} days: {sharpe_total:.4f}")
     print(f"Total Sortino Ratio over {n_days} days: {sortino_total:.4f}")
     print(f"Latest ChatGPT Equity: ${final_equity:.2f}")
-    # Get S&P 500 data
+    # Get S&P 500 data with fallbacks and guards
     spx = yf.download("^SPX", start="2025-06-27", end=final_date + pd.Timedelta(days=1), progress=False)
     spx = cast(pd.DataFrame, spx)
-    spx = spx.reset_index()
-
-    # Normalize to $100
-    initial_price = spx["Close"].iloc[0].item()
-    price_now = spx["Close"].iloc[-1].item()
-    scaling_factor = 100 / initial_price
-    spx_value = price_now * scaling_factor
-    print(f"$100 Invested in the S&P 500: ${spx_value:.2f}")
+    if spx is None or len(spx) == 0:
+        spx = yf.download("^GSPC", start="2025-06-27", end=final_date + pd.Timedelta(days=1), progress=False)
+        spx = cast(pd.DataFrame, spx)
+    if spx is None or len(spx) == 0:
+        spx = yf.download("SPY", start="2025-06-27", end=final_date + pd.Timedelta(days=1), progress=False)
+        spx = cast(pd.DataFrame, spx)
+    if spx is None or len(spx) == 0:
+        print("Failed to download S&P 500 benchmark data. Skipping SPX metrics.")
+    else:
+        spx = spx.reset_index()
+        if "Close" in spx and not spx["Close"].empty:
+            initial_price = float(spx["Close"].iloc[0])
+            price_now = float(spx["Close"].iloc[-1])
+            base = initial_price if initial_price != 0 else 1.0
+            scaling_factor = 100 / base
+            spx_value = price_now * scaling_factor
+            print(f"$100 Invested in the S&P 500: ${spx_value:.2f}")
+        else:
+            print("Benchmark data missing Close prices. Skipping SPX metrics.")
     print("today's portfolio:")
     print(chatgpt_portfolio)
     print(f"cash balance: {cash}")
